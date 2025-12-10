@@ -1,0 +1,127 @@
+#define BLYNK_TEMPLATE_ID "TMPL3rmSgEAnl"
+#define BLYNK_TEMPLATE_NAME "SOLAR TRACKING SYSTEM"
+#define BLYNK_AUTH_TOKEN "meO54FP-hY8W5ZuiaCiWPwlt6hlHLeDZ"
+#include <Servo.h>
+#include "DHT.h"
+#include <ESP8266WiFi.h>
+#define BLYNK_PRINT Serial
+#define BLYNK_MAX_SENDBYTES 256 
+#include <BlynkSimpleEsp8266.h>
+#define rain D5
+#define DHTPIN D4          
+#define DHTTYPE DHT11  
+DHT dht(DHTPIN, DHTTYPE);
+
+char auth[] = "meO54FP-hY8W5ZuiaCiWPwlt6hlHLeDZ";
+char ssid[] = "iot";
+char pass[] = "123456789";
+
+float temperature = 0;
+float humidity = 0;
+BlynkTimer timer;
+Servo myservo;
+String inputString = "";  
+boolean stringComplete = false;
+  int value1 ;
+  int value2 ;
+  int value3 ;
+int val1=0,sec=0,a=0,b=0;
+void sendSensorData() 
+{
+    humidity = dht.readHumidity();  
+    temperature = dht.readTemperature();
+    Blynk.virtualWrite(V0, temperature);
+    Blynk.virtualWrite(V1, humidity);
+    Blynk.virtualWrite(V2, value1);
+    Blynk.virtualWrite(V4, value2);
+     Blynk.virtualWrite(V3, value3);
+    
+
+}
+
+
+void smoothMove(Servo &servo, int targetAngle, int delayTime) {
+  int currentAngle = servo.read();  
+  int step = (targetAngle > currentAngle) ? 1 : -1;  
+  
+ 
+  for (int angle = currentAngle; angle != targetAngle; angle += step) {
+    servo.write(angle);  
+    delay(delayTime);  
+  }
+  servo.write(targetAngle);  
+}
+
+void setup() 
+{
+  Serial.begin(9600);
+  dht.begin();
+  pinMode(rain,INPUT_PULLUP);
+  Serial.println("DHT11 sensor reading...");
+  myservo.attach(D7); 
+  delay(1000);
+  Blynk.begin(auth, ssid, pass,"blynk.cloud",80);
+  timer.setInterval(5000L, sendSensorData);
+  myservo.write(180);
+  Serial.println("CLEARDATA");
+  Serial.println("LABEL,Battery Voltage,Solar Voltage,TemperatureC,Humidity%,paneltemp");
+  a=0;b=0;
+}
+
+void loop() {
+ Blynk.run();
+ timer.run();
+    humidity = dht.readHumidity();  
+    temperature = dht.readTemperature();
+if(value3>30&&a==0){ b=1;smoothMove(myservo, 0, 20);a=1;}
+if(value3<30&&a==1){ smoothMove(myservo, 180, 20);a=0;}
+val1 = digitalRead(rain);
+if(!val1){ a=0;sec++;}else{sec=0;}
+if(sec>5){smoothMove(myservo, 0, 20);b=0;}
+if(val1&&b==0){ sec=0;smoothMove(myservo, 180, 20);a=0;b=1;}
+ if (stringComplete) {
+    if (inputString.charAt(0) == '*' && inputString.length() >= 10) {
+
+      String val1 = inputString.substring(1, 4);
+      String val2 = inputString.substring(4, 7);
+      String val3 = inputString.substring(7, 10);
+
+      
+       value1 = val1.toInt();
+       value2 = val2.toInt();
+       value3 = val3.toInt();
+
+      // Print for debugging
+      //Serial.print("Value 1: "); Serial.println(value1);
+      //Serial.print("Value 2: "); Serial.println(value2);
+      //Serial.print("Value 3: "); Serial.println(value3);
+
+    } else {
+      Serial.println("Invalid data format");
+    }
+
+    
+    inputString = "";
+    stringComplete = false;
+  }
+  Serial.print("DATA,");
+  Serial.print(value1); Serial.print(",");
+  Serial.print(value2); Serial.print(",");
+  Serial.print(temperature,2); Serial.print(",");
+  Serial.print(humidity,2); Serial.print(",");
+  Serial.print(value3); Serial.println(",");
+  
+  delay(2000);
+}
+
+void serialEvent() {
+  while (Serial.available()) {
+    char inChar = (char)Serial.read();
+    inputString += inChar;
+    
+   
+    if (inChar == '\n') {
+      stringComplete = true;
+    }
+  }
+}
